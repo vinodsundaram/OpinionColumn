@@ -1,0 +1,151 @@
+---
+title: "Analyzing Opinion Column"
+subtitle: "BigData Analytics Technologies"
+author: "Vinod Sundaram, Harshavardhan Joshi, Shudharsanan"
+date: "April 10, 2016"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+__Abstract__
+
+Opinion columns are long piece articles published in newspapers or magazines. These articles are generally written by regular columnists who are people with subject matter experience. Such pieces may be strongly opinionated and tend to bring the author's perspective on the issue. In this paper, we try to understand how authors write opinion columns, their opinion on different issues and personalities and their personal writing style over a period of time. We do an exploratory analysis on The Guardian columnists. 
+
+__Concepts__ 
+
+Attempt to marry the columnist data with 
+
+- TF-IDF
+- Sentiment analysis
+
+__Data Sources__  
+
+Data for all columnists till feb 2016 on theguardian.com website. Data obtained by scrapping the webpages.
+
+```{r echo=FALSE}
+library("readxl")
+library('plyr')
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+library(qdap)
+```
+```{r cache=TRUE , warning=FALSE,prompt=FALSE, cache=TRUE, echo=FALSE}
+### Loading data
+
+setwd("E:/NUS/Semester 2/BIG-DATA ANALYTICS TECHNOLOGY/Project")
+tbl<- read_excel("ArticleData.xlsx")
+tbl1<-tbl
+```
+__Data Preparation__
+
+21K articles by close to 180+ columnists.
+
+Given we had 7 columns - Link, Topic,Heading, Summary, Article, Author, Outlinks - our data preparation included :
+
+- creating new columns like year, etc
+- cleaning up data.. removing video (317), podcast (1142) links among the pages.
+
+**Guardian.com website**
+
+- [The Guardian.com](http://www.theguardian.com/) was launched in 1999, born of the Guardian New Media Lab. 
+- Its popularity soared after the *September 11 (9/11) WTC attacks in the United States in 2001, largely thanks to the diverse range of viewpoints published in the Guardian newspaper
+- In 2006 guardian.com reported its first profitable year, with income coming mostly from recruitment and display advertising
+
+
+```{r cache=TRUE, echo=FALSE}
+#sum(count(grep('video', tbl1$Link))$freq) ## those with 317 videos
+tbl1<-tbl1[-grep('video', tbl1$Link),] ## 317 videos removed
+
+#head(tbl1[grep('radio', tbl1$Link),1])
+#sum(count(grep('radio', tbl1$Link))$freq)
+tbl1<-tbl1[-grep('radio', tbl1$Link),] ## 1142 radio removed
+
+tbl1$year<-unlist(strsplit(tbl$Link[[5]],"/"))[5]
+#summary(tbl1$year)
+for (i in 1:nrow(tbl)){
+  if(unlist(strsplit(tbl$Link[[i]],"/"))[5] %in% c(1980:2016))
+    tbl1[i,"year"]<-unlist(strsplit(tbl$Link[[i]],"/"))[5]
+  else if(unlist(strsplit(tbl$Link[[i]],"/"))[6] %in% c(1980:2016))
+    tbl1[i,"year"]<-unlist(strsplit(tbl$Link[[i]],"/"))[6]
+  else if(unlist(strsplit(tbl$Link[[i]],"/"))[7] %in% c(1980:2016))   
+    tbl1[i,"year"]<-unlist(strsplit(tbl$Link[[i]],"/"))[7]
+  else if(unlist(strsplit(tbl$Link[[i]],"/"))[8] %in% c(1980:2016))   
+    tbl1[i,"year"]<-unlist(strsplit(tbl$Link[[i]],"/"))[8]
+  else 
+    tbl1[i,"year"]<-NA
+    }
+```
+
+**Articles over the years**
+
+```{r prompt=FALSE, echo=FALSE}
+year.freq<-count(tbl1$year[tbl1$year > 1995])
+year.freq <-na.omit(year.freq)
+year.freq.plot <- ggplot(year.freq, aes(x, freq))+geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=90),panel.background = element_blank()) #+
+  #ggtitle('Number of Opinion Articles over the years')
+year.freq.plot
+```
+
+_key takeaway_ : On an average, **1200+ articles** are written in a year from 2005 onwards on guardian.com
+
+
+**Topics**
+
+We look at the different topics on which the 180 authors have been written. We tried to group to find out the top topics on which they have written.
+
+```{r cache=TRUE, echo=FALSE}
+topic.freq <-na.omit(tbl1$Topic)
+topic.freq<- count(topic.freq)
+topic.freq.sorted<-topic.freq[order(-topic.freq$freq),]
+head(topic.freq.sorted,10)
+
+freqCorpus <- Corpus(VectorSource(tbl1$Topic))
+freqCorpus <- tm_map(freqCorpus,removePunctuation)
+freqCorpus<- tm_map(freqCorpus, removeWords, stopwords("en"))
+freqCorpus <- tm_map(freqCorpus, removeNumbers) 
+freqCorpus <- tm_map(freqCorpus, tolower)
+freqCorpus <- tm_map(freqCorpus, PlainTextDocument)
+wordcloud(freqCorpus, max.words = 150, random.order = FALSE)
+```
+
+_Key Takeaway_ : The words reflect the topics on which the articles are being written with Politics, Lifestyle, world news as top words
+
+**Contributing Authors**
+
+Overall, There have been 178 opinion column contributors to the Guardian.com.  
+
+```{r echo=FALSE}
+#unique(tbl1$Author) ## 178 authors (190)
+author.freq <-na.omit(tbl1$Author)
+author.freq <- count(author.freq)
+author.freq.sorted<-author.freq[order(-author.freq$freq),]
+#head(author.freq.sorted)
+
+author.freq.sorted10<-author.freq[order(-author.freq$freq),]
+author.freq.sorted10<-head(author.freq.sorted,10)
+row.names(author.freq.sorted10)<-NULL
+
+author.freq.plot <- ggplot(author.freq.sorted10, aes (x= reorder(x,-freq),freq))+geom_bar(stat="identity") +
+  theme(panel.background = element_blank()) +
+  coord_flip() +labs(x="Top 10 Authors",y="Number of articles contributed") 
+author.freq.plot
+```
+
+Many authors have different types of engagements with the paper. Some are daily, weekly, bi-weekly contributors. So careful selection of author was need to do some analysis
+
+**Questions/Hypothesis**
+
+From a columnist's article, do trends emerge over a period of time
+
+- Common words
+- popular trends over the years
+- personality change over the years
+- Is the articles being well-read.. How difficult is it to read
+- Mature writer vs seasoned writer

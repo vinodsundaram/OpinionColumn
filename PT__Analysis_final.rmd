@@ -1,0 +1,335 @@
+---
+title: "Polly Toynbee"
+subtitle: "Analyzing Opinion Column - Big data analytics Technologies"
+author: "Vinod Sundaram, Harshavardhan Joshi, Shudharsanan"
+date: "April 4, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning = FALSE, echo=FALSE, prompt=FALSE,message=FALSE}
+library('plyr')
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+library(qdap)
+```
+**Polly Toynbee** is a British journalist and writer, and has been a columnist for The Guardian newspaper since 1998.She is a social democrat and was a candidate for the Social Democratic Party in the 1983 general election. She now broadly supports the Labour Party.
+
+- Called *queen of leftist* journalists
+- Preferred Labour-liberal coalition to keep conservative out of power. But Conservative-liberal joined hands in 2010.
+- Very critical of conservative-liberal and wanted labour in 2015. Been very vociferous about the labour leadership
+
+
+```{r warning=FALSE,prompt=FALSE, cache=TRUE, echo=FALSE}
+setwd("E:/NUS/Semester 2/BIG-DATA ANALYTICS TECHNOLOGY/Project")
+pt<- read.csv("Polly_Toynbee_Data.csv",stringsAsFactors = FALSE)
+
+```
+**Data Preparation**
+
+- all the articles related to videos, radio, etc. 
+- Extract year and other features from the article
+
+```{r cache=TRUE, echo=FALSE}
+pt$Author<- as.factor(pt$Author) 
+#sum(count(grep('video', pt$Link))$freq) ## those with 26 videos
+pt<-pt[-grep('video', pt$Link),] ## 26 videos removed
+#head(pt[grep('radio', pt$Link),1])
+#sum(count(grep('radio', pt$Link))$freq)
+pt<-pt[-grep('radio', pt$Link),] ## 1 radio removed
+#pt$year<-unlist(strsplit(pt$Link[[5]],"/"))[5]
+#head(pt$year)
+for (i in 1:nrow(pt)){
+  if(unlist(strsplit(pt$Link[[i]],"/"))[5] %in% c(1980:2016))
+    pt[i,"year"]<-unlist(strsplit(pt$Link[[i]],"/"))[5]
+  else if(unlist(strsplit(pt$Link[[i]],"/"))[6] %in% c(1980:2016))
+    pt[i,"year"]<-unlist(strsplit(pt$Link[[i]],"/"))[6]
+  else if(unlist(strsplit(pt$Link[[i]],"/"))[7] %in% c(1980:2016))   
+    pt[i,"year"]<-unlist(strsplit(pt$Link[[i]],"/"))[7]
+  else if(unlist(strsplit(pt$Link[[i]],"/"))[8] %in% c(1980:2016))   
+    pt[i,"year"]<-unlist(strsplit(pt$Link[[i]],"/"))[8]
+  else 
+    pt[i,"year"]<-NA
+}
+```
+
+
+On an average across years, Toynbee writes **80-90 articles** in a year, more than 1 article a week.
+
+```{r echo=FALSE,cache=TRUE}
+pt.year.freq<- count(pt$year)
+#mean(pt.year.freq$freq)
+#plot(pt.year.freq$x,pt.year.freq$freq)
+pt.year.freq.plot <- ggplot(pt.year.freq, aes(x, freq))+geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle=90),panel.background = element_blank()) +
+  labs(x="Toynbee over the years",y="Number of articles contributed") 
+  #+ggtitle('Number of Opinion Articles over the years')
+pt.year.freq.plot
+#unique(pt$Topic)  ## 344 topics
+```
+
+Next we look at the **topics** on which Polly Toynbee writes on. She writes a whole spectrum of articles in current affairs politics, social-democratic in true sense.
+
+```{r echo=FALSE}
+pt.topic.freq<- count(pt$Topic)
+pt.topic.freq.sorted<-pt.topic.freq[order(-pt.topic.freq$freq),] #sort
+pt.topic.freq.sorted<- pt.topic.freq.sorted[!is.na(pt.topic.freq.sorted),] #rem NA
+row.names(pt.topic.freq.sorted)=NULL
+head(pt.topic.freq.sorted, na.rm=FALSE, n=20)
+```
+
+***
+
+**Data Analysis for Polly Toynbee**
+
+For the data Analysis of Polly Toynbee's articles, we look at the three different parameters:
+
+1. Word usage over the years
+2. Polarity of articles
+3. Readability of articles
+
+***
+
+**1) Word usage**
+
+```{r warning=FALSE, echo=FALSE,cache=TRUE}
+freqCorpus <- Corpus(VectorSource(pt$Article))
+freqCorpus <- tm_map(freqCorpus,removePunctuation)
+freqCorpus<- tm_map(freqCorpus, removeWords, stopwords("en"))
+mystopwords <- c("xcxabn","that","this","back","the","never","now","but","says","take","like","make","will","one","can","every","many","may","just","much","last","still","get","yet","make","even","xcxa","less")
+freqCorpus<- tm_map(freqCorpus, removeWords, mystopwords)
+freqCorpus <- tm_map(freqCorpus, removeNumbers) 
+freqCorpus <- tm_map(freqCorpus, tolower)
+freqCorpus <- tm_map(freqCorpus, stemDocument)   
+#freqCorpus <- tm_map(freqCorpus, stripWhitespace)   
+freqCorpus <- tm_map(freqCorpus, PlainTextDocument)
+mystopwords <- c("xcxabn","that","this","back","the","never","now","but","says","take","like","make","will","one","can","every","many","may","just","much","last","still","get","yet","make","even","xcxa","less","said")
+freqCorpus<- tm_map(freqCorpus, removeWords, mystopwords)
+```
+
+We look at all articles published by Ms.Toynbee. The word cloud gives a list of all top words used by her across articles.
+
+This is in accordance with the *topic* on which she has written articles.
+
+```{r echo=FALSE,cache=TRUE}
+wordcloud(freqCorpus, min.freq = 3000, random.order =FALSE,scale=c(5,0.5),colors=brewer.pal(8, "Dark2"))
+title("Top words used by Toynbee across all articles")
+#dev.off()
+```
+
+When compared to another writer who writes on Life style, celebrity, etc.. Very different top words
+![](zoe_lifestyle.png)
+
+
+**Word usage Across different years**
+
+One of our analysis is we wanted to understand how author's writing style changes over a period, especially for long time contributors. For our analysis scope, we try to look at the top words used  by author across different years. This is colloborating with the top topics that she writes on and the individual events that happen in certain years.
+
+*Hypothesis* - Does writing style/words used change over a period of time
+
+```{r prompt=FALSE, warning=FALSE,echo=FALSE, cache=TRUE}
+# top 25 in each year
+word_year <- data.frame()
+for(year in sort(unique(pt$year))){
+  freqCorpus <- Corpus(VectorSource(pt$Article[pt$year == year]))
+  freqCorpus <- tm_map(freqCorpus,removePunctuation)
+  freqCorpus<- tm_map(freqCorpus, removeWords, stopwords("en"))
+  mystopwords <- c("xcxabn","that","this","back","the","never","now","but","says","take","like","make","will","one","can","every","many","may","just","much","last","still","get","yet","make","even","xcxa","less")
+  freqCorpus<- tm_map(freqCorpus, removeWords, mystopwords)
+  freqCorpus <- tm_map(freqCorpus, removeNumbers) 
+  freqCorpus <- tm_map(freqCorpus, tolower)
+  freqCorpus <- tm_map(freqCorpus, stemDocument)
+  freqCorpus <- tm_map(freqCorpus, stemDocument)
+  freqCorpus <- tm_map(freqCorpus, stemDocument)
+  #freqCorpus <- tm_map(freqCorpus, stripWhitespace)   
+  freqCorpus <- tm_map(freqCorpus, PlainTextDocument)
+  mystopwords <- c("xcxabn","that","this","back","the","never","now","but","says","take","like","make","will","one","can","every","many","may","just","much","last","still","get","yet","make","even","xcxa","less","always","great","ever","way","for","far","man","said","thats","dont")
+  freqCorpus<- tm_map(freqCorpus, removeWords, mystopwords)
+  tdm <- TermDocumentMatrix(freqCorpus)
+  tdm_idf <- weightTfIdf(tdm, normalize = T)
+  freq <- rowSums(as.matrix(tdm))   
+  g <- head(sort(freq,decreasing = TRUE),20) 
+  g <- as.data.frame(g)
+  g$words <- rownames(g)
+  rownames(g) <- NULL
+  g$year <- rep(year,nrow(g))
+  g$rank <- 1:nrow(g)
+  word_year <- rbind(word_year,g)
+}
+word_year$x <- rep(1, nrow(g))
+word_year$year <- as.factor(word_year$year)
+```
+```{r cache=TRUE, echo=FALSE}
+##![](Word_Usage_Years.png)
+#ggsave("Word_Usage_Years.png", width = 13.5, height = 5.5)
+ggplot(word_year) + geom_label(aes(x = x, y = rank, label = words, fill = year), size = 2.0) +scale_y_reverse() + theme_minimal() + facet_grid(. ~ year) + theme(legend.position = "none", axis.title.x = element_blank(), axis.text.x = element_blank(),axis.text.y = element_blank(), axis.title.y = element_blank()) +  scale_x_discrete() 
+```
+
+Inferences:
+
+- Words such as "labour", "tax", "cuts", "money", "work" and "pay" demonstrate a consistency in her Social-Democratic roots
+- Toynbee began to turn critical of *New labour* in this period 2000-2005
+- Beyond 2010 we see David Cameron being mentioned, Gordon Brown phases out
+- 1998 Clinton scandal also finds a mention
+
+***
+
+**2) Article polarity across years**
+
+Does the author have varying ranges of opinion - positive, negative, neutral - over time?
+Some people get cynical and continue to write more negative comments against government
+
+```{r echo=FALSE, cache=TRUE}
+pt1<- read.csv("Polly_Toynbee_Data_cleaned.csv")
+pt1<-(pt1[-(1)])
+#names(pt1)
+pt1<-pt1[-1,]
+row.names(pt1)<-NULL
+ggplot(pt1,aes(x = as.factor(year), y = polarity)) + geom_boxplot() + theme_minimal() +
+  xlab("Year") + ylab("Polarity") + ggtitle("Polarity in Articles") + theme(axis.text.x = element_text(angle = 90)) + scale_y_continuous(limits = c(-5,5))
+```
+
+Inferences:
+
+- She expressed negative and positive sentiments in her articles, long standing career
+- Most of the articles seem negative, but not very critical around -1 to +1 range
+
+On an average, she writes around 2000 words per articles
+
+**Polarity on topics**
+
+```{r warning=FALSE}
+ggplot(pt1[pt1$Topic == "Politics" | pt1$Topic == "Labour" | pt1$Topic == "Society" |pt1$Topic == "Economic policy" ,],aes(x = year, y= polarity)) + geom_boxplot(aes(group = year)) + facet_grid(Topic ~ .) +
+theme_minimal() + xlab("Year") + ylab("Polarity") + ggtitle("Varying Polarity by Topic") + scale_y_continuous(limits = c(-5,5))
+```
+
+Very similar inference to previous total polarity graph
+
+**Personality specific polarity analysis**
+
+Next we wanted to look at the polarity varies with personalities. Here we look at the British Politicians and how polarized Ms.Toynbee's articles are whenever these politicians are mentioned.
+
+Every personality has a varying sentiment associated with him, however, this sentiment can be interpreted as the articles overall sentiment, rather than that associated with the personality. Therefore not a wide range of sentiment is observed.
+
+```{r echo=FALSE, cache=TRUE,warning=FALSE}
+pt2<-pt1[grep ('tony blair',tolower(pt1$Article)),]
+ggplot(pt2,aes(x = as.factor(year), y = polarity)) + geom_boxplot() + ggtitle("Tony Blair's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+
+
+pt2<-pt1[grep ('gordon brown',tolower(pt1$Article)),]
+ggplot(pt2,aes(x = as.factor(year), y = polarity)) + geom_boxplot() + ggtitle("Gordon Brown's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+
+pt2<-pt1[grep('cameron',tolower(pt1$Article)),]
+ggplot(pt2,aes(x = as.factor(year), y = polarity)) + geom_boxplot() + ggtitle("David Cameron's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) 
+
+pt2<-pt1[grep ('miliband',tolower(pt1$Article)),]
+ggplot(pt2,aes(x = as.factor(year), y = polarity)) + geom_boxplot() + ggtitle("Edward Miliband's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+```
+
+The graphs actually didn't really throw meaningful insight. We wanted to dig deeper at looking each sentence in each of the articles where the politicians are mentioned and calculate how critical Ms.Toynbee has been. 
+
+For this, we look at all articles and look at each sentence where there's a mention of these politicans and we get the total polarity for each politican in each article.
+
+```{r echo=FALSE, warning=FALSE}
+pt1<- read.csv("Polly_Toynbee_Data_cleaned1.csv")
+pt1<-(pt1[-(1)])
+#names(pt1)
+row.names(pt1)<-NULL
+
+ggplot(pt1,aes(x = as.factor(year), y = Blair_Polarity)) + geom_boxplot() + ggtitle("Tony Blairs's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+
+ggplot(pt1,aes(x = as.factor(year), y = Brown_Polarity)) + geom_boxplot() + ggtitle("Gordon Brown's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+
+pt3<-na.omit(pt1$Miliband_Polarity)
+pt3<-pt1[pt1$Miliband_Polarity!=0,]
+
+ggplot(pt1,aes(x = as.factor(year), y = Cameron_Polarity)) + geom_boxplot() + ggtitle("David Cameron's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+
+  ggplot(pt3,aes(x = as.factor(year), y = Miliband_Polarity)) + geom_boxplot() + ggtitle("Edward Miliband's Polarity") + xlab("Year") + ylab("Polarity") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(limits = c(-5,5))
+```
+
+Inference:
+- All 4 personalities much more bigger sentiment boxes
+- Range is much more apparant for Ed Miliband, post 2010 when Toynbee became critical of Labour leadership
+
+***
+
+**3) Article Readability analysis**
+
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(pt1,aes(x = as.factor(year), y = readability)) + geom_boxplot() + ggtitle("Overall readability of her articles") + xlab("Year") + ylab("Readability") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90))
+
+pt2<-pt1[grep('cameron',tolower(pt1$Article)),]
+ggplot(pt2,aes(x = as.factor(year), y = readability)) + geom_boxplot() + ggtitle("Readability of articles with David Cameron mentioned") + xlab("Year") + ylab("Readability") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 90)) 
+```
+
+Inferences:
+
+- Election years tend to be relatively highly readable than others
+- Articles in which David Cameron mentioned in his PM tenure has lower readability (May be with age)
+
+
+***
+
+**Conclusions**
+
+Naive approach with data in public domain:
+
+1. Personal traits and political inclination play a very significant role in her writings
+2. Articles related to Social-democratic principles
+3. Opinions and positions remained fairly constant. Critical of Labour from Blair time
+
+**Further Work**
+
+1. Individual topics how Toynbee has reacted - Scottish referendum, Greece bailout
+2. Compare and contrast with Zoe Williams, lifestyle writer 
+3. Compare Toynbee with a new emerging writer
+
+**Acknowledgements**
+
+1. Suhrith Parthasarathy - Lawyer, Columnist at The Hindu, top selling English newspaper in India
+2. Sidin Vadukut - Managing Editor and Columnist at LiveMint, top business/current affairs newspaper and news website
+
+
+```{r echo=FALSE}
+#dtm <- DocumentTermMatrix(freqCorpus)
+#dtm
+#tdm <- TermDocumentMatrix(freqCorpus)
+#tdm
+```
+
+```{r echo=FALSE}
+#freq <- colSums(as.matrix(dtm))   
+#head(sort(freq,decreasing = TRUE),25) #top 25 frequent words throughtout her carrier
+#wordcloud(names(sort(freq,decreasing = TRUE)[1:100]),sort(freq,decreasing = TRUE)[1:100])
+```
+```{r echo=FALSE}
+#dtms <- removeSparseTerms(dtm, 0.4)
+#dtms
+#head(inspect(dtms))
+#freq1 <- colSums(as.matrix(dtms))
+#head(freq1,n=25)
+```
